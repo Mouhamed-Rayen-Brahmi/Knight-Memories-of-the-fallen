@@ -3,7 +3,7 @@ using UnityEngine;
 
 namespace ClearSky
 {
-    public class SimplePlayerController : MonoBehaviour
+    public class SimplePlayerController : MonoBehaviour, IDamageable
     {
         public float movePower = 10f;
         public float jumpPower = 5f;
@@ -36,16 +36,46 @@ namespace ClearSky
         // Start is called before the first frame update
         void Start()
         {
+            // Make sure player is tagged properly
+            gameObject.tag = "Player";
+            Debug.Log("Player initialized with tag: " + gameObject.tag);
+            
+            // Initialize components
             rb = GetComponent<Rigidbody2D>();
             anim = GetComponent<Animator>();
             originalScale = transform.localScale; 
             currentHealth = maxHealth; // Initialize health
             alive = true;
+            
+            // Ensure no rotation on Z axis from the start
+            transform.rotation = Quaternion.Euler(transform.rotation.eulerAngles.x, transform.rotation.eulerAngles.y, 0f);
+            
+            // Configure rigidbody constraints
+            if (rb != null)
+            {
+                rb.constraints = RigidbodyConstraints2D.FreezeRotation;
+            }
+            
+            // Ensure we have a proper collider for collision detection
+            Collider2D playerCollider = GetComponent<Collider2D>();
+            if (playerCollider == null)
+            {
+                Debug.LogWarning("Player has no collider - adding BoxCollider2D");
+                BoxCollider2D newCollider = gameObject.AddComponent<BoxCollider2D>();
+                newCollider.size = new Vector2(0.8f, 1.8f);
+                newCollider.offset = new Vector2(0, 0);
+            }
         }
 
         private void Update()
         {
             Restart();
+            
+            // Prevent rotation on Z axis
+            if (transform.rotation.eulerAngles.z != 0)
+            {
+                transform.rotation = Quaternion.Euler(transform.rotation.eulerAngles.x, transform.rotation.eulerAngles.y, 0f);
+            }
             
             // Handle invincibility timer
             if (isInvincible)
@@ -93,7 +123,7 @@ namespace ClearSky
                 // Debug hurt for testing
                 if (Input.GetKeyDown(KeyCode.Alpha2))
                 {
-                    TakeDamage(1);
+                    TakeDamage(1f);
                 }
                 Attack();
                 Jump();
@@ -121,7 +151,7 @@ namespace ClearSky
                 enemyCollisionCooldown[enemyInstanceId] = Time.time + enemyContactDamageCooldown;
                 
                 // Default damage amount is 1
-                TakeDamage(1);
+                TakeDamage(1f);
             }
         }
     }
@@ -140,7 +170,7 @@ namespace ClearSky
                 enemyCollisionCooldown[enemyInstanceId] = Time.time + enemyContactDamageCooldown;
                 
                 // Apply damage
-                TakeDamage(1);
+                TakeDamage(1f);
             }
         }
     }
@@ -170,6 +200,22 @@ namespace ClearSky
             anim.SetBool("isJump", false);
         }
     }
+    
+    private void FixedUpdate()
+    {
+        // Also enforce Z rotation constraint in physics updates
+        if (transform.rotation.eulerAngles.z != 0)
+        {
+            transform.rotation = Quaternion.Euler(transform.rotation.eulerAngles.x, transform.rotation.eulerAngles.y, 0f);
+        }
+        
+        // If using a Rigidbody2D, also constrain its rotation
+        if (rb != null)
+        {
+            rb.constraints = RigidbodyConstraints2D.FreezeRotation;
+        }
+    }
+    
         void Run()
         {
             Vector3 moveVelocity = Vector3.zero;
@@ -231,23 +277,62 @@ namespace ClearSky
         
         void DealDamageToEnemies()
         {
+            // Calculate attack position in front of the player
             Vector2 attackPosition = transform.position;
-            attackPosition.x += direction * 0.5f; 
+            attackPosition.x += direction * 0.8f; // Increased offset to reach enemies better
             
+            // Debug message for attack
+            Debug.Log("Player attacking at position: " + attackPosition + " with range: " + attackRange);
+            
+            // Get all colliders in attack range
             Collider2D[] hitColliders = Physics2D.OverlapCircleAll(attackPosition, attackRange);
+            
+            bool hitAnything = false;
             
             foreach (Collider2D hitCollider in hitColliders)
             {
+                // Skip self-collision
                 if (hitCollider.gameObject == gameObject) continue;
                 
-                if (hitCollider.CompareTag("Enemy"))
+                Debug.Log("Hit object: " + hitCollider.gameObject.name + " with tag: " + hitCollider.tag);
+                
+                // Check for enemy tag or enemy sword tag
+                if (hitCollider.CompareTag("Enemy") || hitCollider.transform.CompareTag("Enemy"))
                 {
+                    // Try to get enemy component directly
                     EnemyCode enemy = hitCollider.GetComponent<EnemyCode>();
+                    
+                    // If not found, try parent
+                    if (enemy == null && hitCollider.transform.parent != null)
+                    {
+                        enemy = hitCollider.transform.parent.GetComponent<EnemyCode>();
+                    }
+                    
+                    // Apply damage if enemy found
                     if (enemy != null)
                     {
+                        Debug.Log("Player hit enemy for " + attackDamage + " damage");
                         enemy.TakeDamage(attackDamage);
+                        hitAnything = true;
+                        
+                        // Apply knockback to enemy if it has Rigidbody2D
+                        Rigidbody2D enemyRb = enemy.GetComponent<Rigidbody2D>();
+                        if (enemyRb != null)
+                        {
+                            Vector2 knockbackDir = (enemy.transform.position - transform.position).normalized;
+                            enemyRb.AddForce(knockbackDir * 5f, ForceMode2D.Impulse);
+                        }
+                    }
+                    else
+                    {
+                        Debug.LogWarning("Hit enemy collider but couldn't find EnemyCode component!");
                     }
                 }
+            }
+            
+            if (!hitAnything)
+            {
+                Debug.Log("Player attack didn't hit any enemies");
             }
         }
         
@@ -259,19 +344,39 @@ namespace ClearSky
             Gizmos.color = Color.red;
             Gizmos.DrawWireSphere(attackPosition, attackRange);
         }
-        public void TakeDamage(int damageAmount)
+        // Implement IDamageable interface
+        public void TakeDamage(float damage)
         {
-            // If already invincible or dead, ignore damage
-            if (isInvincible || !alive)
-                return;
+            Debug.Log("Player.TakeDamage called with damage: " + damage);
             
-            // Apply damage
+            // If already invincible or dead, ignore damage
+            if (isInvincible)
+            {
+                Debug.Log("Player is invincible - damage ignored");
+                return;
+            }
+            
+            if (!alive)
+            {
+                Debug.Log("Player is not alive - damage ignored");
+                return;
+            }
+            
+            // Apply damage (convert float to int if needed)
+            int damageAmount = Mathf.RoundToInt(damage);
             currentHealth -= damageAmount;
+            
+            Debug.Log("Player took " + damageAmount + " damage! Current health: " + currentHealth);
             
             // Play hurt animation
             if (anim != null)
             {
                 anim.SetTrigger("hurt");
+                Debug.Log("Player hurt animation triggered");
+            }
+            else
+            {
+                Debug.LogError("Player has no animator component!");
             }
             
             // Apply knockback force
@@ -279,11 +384,13 @@ namespace ClearSky
             if (rb != null)
             {
                 rb.AddForce(knockbackDirection * knockbackForce, ForceMode2D.Impulse);
+                Debug.Log("Applied knockback force to player");
             }
             
             // Set invincibility
             isInvincible = true;
             invincibilityTimer = invincibilityTime;
+            Debug.Log("Player is now invincible for " + invincibilityTime + " seconds");
             
             // Apply visual feedback for invincibility
             SpriteRenderer spriteRenderer = GetComponent<SpriteRenderer>();
@@ -295,6 +402,7 @@ namespace ClearSky
             
             if (currentHealth <= 0)
             {
+                Debug.Log("Player health reached zero - calling Die()");
                 Die();
             }
         }
