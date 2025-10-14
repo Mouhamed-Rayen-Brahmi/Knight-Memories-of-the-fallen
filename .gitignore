@@ -68,3 +68,4 @@ Thumbs.db
 
 # Gradle cache directory
 .gradle/
+.fake

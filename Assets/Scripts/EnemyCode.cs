@@ -25,7 +25,7 @@ public class EnemyCode : MonoBehaviour, IDamageable
     
     [Header("Death Settings")]
     public float deathDelay = 3f;
-    public GameObject deathEffect;
+    public AnimationClip deathEffect;
     
     [Header("Movement Settings")]
     public float moveSpeed = 3f;
@@ -636,10 +636,39 @@ public class EnemyCode : MonoBehaviour, IDamageable
         // Disable colliders
         DisableAllColliders();
         
-        // Spawn death effect if available
+        // Play death effect animation if available
         if (deathEffect != null)
         {
-            Instantiate(deathEffect, transform.position, Quaternion.identity);
+            // Create a GameObject for the death effect at the enemy's position
+            GameObject deathEffectObj = new GameObject("DeathEffect");
+            deathEffectObj.transform.position = transform.position;
+            deathEffectObj.transform.rotation = transform.rotation;
+            
+            // Add sprite renderer component
+            SpriteRenderer newRenderer = deathEffectObj.AddComponent<SpriteRenderer>();
+            
+            // Copy sprite renderer settings from the enemy if available
+            SpriteRenderer enemyRenderer = GetComponent<SpriteRenderer>();
+            if (enemyRenderer != null)
+            {
+                newRenderer.sortingLayerName = enemyRenderer.sortingLayerName;
+                newRenderer.sortingOrder = enemyRenderer.sortingOrder + 1; // Render on top
+                newRenderer.material = enemyRenderer.material;
+            }
+            
+            // Add Animation component and play the death animation
+            Animation animationComponent = deathEffectObj.AddComponent<Animation>();
+            animationComponent.AddClip(deathEffect, "DeathEffect");
+            animationComponent.clip = deathEffect;
+            animationComponent.playAutomatically = true;
+            animationComponent.wrapMode = WrapMode.Once;
+            
+            // Play the animation
+            animationComponent.Play("DeathEffect");
+            
+            // Destroy the death effect after the animation finishes
+            float animationLength = deathEffect.length;
+            Destroy(deathEffectObj, animationLength + 0.1f);
         }
         
         // Play rotten animation after death, then destroy
