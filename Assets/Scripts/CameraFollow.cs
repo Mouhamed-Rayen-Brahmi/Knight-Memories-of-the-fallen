@@ -34,7 +34,8 @@ public class CameraFollow : MonoBehaviour
     {
         // Don't search immediately, let PlatformGenerator spawn the player first
         if (enableDebugLogs)
-            Debug.Log("[CameraFollow] Camera initialized, will search for player...");
+            return;
+            // Debug.Log("[CameraFollow] Camera initialized, will search for player...");
     }
     
     void FindPlayer()
@@ -51,7 +52,7 @@ public class CameraFollow : MonoBehaviour
             transform.position = initialPos;
             
             if (enableDebugLogs)
-                Debug.Log("[CameraFollow] Found player by tag: " + target.name + " at position: " + target.position);
+               // Debug.Log("[CameraFollow] Found player by tag: " + target.name + " at position: " + target.position);
             return;
         }
         
@@ -67,7 +68,7 @@ public class CameraFollow : MonoBehaviour
             transform.position = initialPos;
             
             if (enableDebugLogs)
-                Debug.Log("[CameraFollow] Found player by component: " + target.name + " at position: " + target.position);
+                // Debug.Log("[CameraFollow] Found player by component: " + target.name + " at position: " + target.position);
             return;
         }
         
@@ -88,7 +89,9 @@ public class CameraFollow : MonoBehaviour
             transform.position = initialPos;
             
             if (enableDebugLogs)
-                Debug.Log("[CameraFollow] Target set by external script: " + target.name + " at position: " + target.position);
+                return;
+            
+                //Debug.Log("[CameraFollow] Target set by external script: " + target.name + " at position: " + target.position);
         }
     }
 
@@ -140,7 +143,7 @@ public class CameraFollow : MonoBehaviour
             _debugTimer += Time.deltaTime;
             if (_debugTimer >= 0.5f)
             {
-                Debug.Log($"[CameraFollow] Player: {target.position.x:F2}, Camera: {transform.position.x:F2}, Diff: {Mathf.Abs(target.position.x - transform.position.x):F2}");
+                // Debug.Log($"[CameraFollow] Player: {target.position.x:F2}, Camera: {transform.position.x:F2}, Diff: {Mathf.Abs(target.position.x - transform.position.x):F2}");
                 _debugTimer = 0f;
             }
         }
@@ -158,7 +161,7 @@ public class CameraFollow : MonoBehaviour
         if (target != null)
         {
             transform.position = new Vector3(target.position.x + _lookAheadPosX, target.position.y + offset.y, -10f);
-            Debug.Log("[CameraFollow] Snapped to target");
+            // Debug.Log("[CameraFollow] Snapped to target");
         }
     }
     
@@ -166,7 +169,7 @@ public class CameraFollow : MonoBehaviour
     void ToggleDebugLogs()
     {
         enableDebugLogs = !enableDebugLogs;
-        Debug.Log("[CameraFollow] Debug logs: " + (enableDebugLogs ? "ENABLED" : "DISABLED"));
+        // Debug.Log("[CameraFollow] Debug logs: " + (enableDebugLogs ? "ENABLED" : "DISABLED"));
     }
     
     [ContextMenu("Force Search for Player")]
@@ -174,6 +177,6 @@ public class CameraFollow : MonoBehaviour
     {
         _searchTimer = searchInterval; // Reset timer to trigger immediate search
         FindPlayer();
-        Debug.Log("[CameraFollow] Forced player search executed");
+        // Debug.Log("[CameraFollow] Forced player search executed");
     }
 }

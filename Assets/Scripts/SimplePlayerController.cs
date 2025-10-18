@@ -36,7 +36,7 @@ namespace ClearSky
         {
             // Make sure player is tagged properly
             gameObject.tag = "Player";
-            Debug.Log("Player initialized with tag: " + gameObject.tag);
+            // Debug.Log("Player initialized with tag: " + gameObject.tag);
             
             // Initialize components
             rb = GetComponent<Rigidbody2D>();
@@ -58,7 +58,7 @@ namespace ClearSky
             }
             else
             {
-                Debug.LogWarning("Player has no Rigidbody2D - adding one for physics-based movement");
+                // Debug.LogWarning("Player has no Rigidbody2D - adding one for physics-based movement");
                 rb = gameObject.AddComponent<Rigidbody2D>();
                 rb.constraints = RigidbodyConstraints2D.FreezeRotation;
                 rb.gravityScale = 3f;
@@ -70,7 +70,7 @@ namespace ClearSky
             Collider2D playerCollider = GetComponent<Collider2D>();
             if (playerCollider == null)
             {
-                Debug.LogWarning("Player has no collider - adding BoxCollider2D");
+                // Debug.LogWarning("Player has no collider - adding BoxCollider2D");
                 BoxCollider2D newCollider = gameObject.AddComponent<BoxCollider2D>();
                 newCollider.size = new Vector2(0.8f, 1.8f);
                 newCollider.offset = new Vector2(0, 0);
@@ -255,7 +255,6 @@ namespace ClearSky
             }
             else
             {
-                Debug.LogError("Player missing Rigidbody2D! Adding one now...");
                 rb = gameObject.AddComponent<Rigidbody2D>();
                 rb.constraints = RigidbodyConstraints2D.FreezeRotation;
                 rb.gravityScale = 3f;
@@ -292,7 +291,7 @@ namespace ClearSky
                 DealDamageToEnemies();
             }
         }
-        
+        // Debug.Log
         void DealDamageToEnemies()
         {
             // Calculate attack position in front of the player
@@ -300,7 +299,7 @@ namespace ClearSky
             attackPosition.x += direction * 0.8f; // Increased offset to reach enemies better
             
             // Debug message for attack
-            Debug.Log("Player attacking at position: " + attackPosition + " with range: " + attackRange);
+            // Debug.Log("Player attacking at position: " + attackPosition + " with range: " + attackRange);
             
             // Get all colliders in attack range
             Collider2D[] hitColliders = Physics2D.OverlapCircleAll(attackPosition, attackRange);
@@ -312,7 +311,7 @@ namespace ClearSky
                 // Skip self-collision
                 if (hitCollider.gameObject == gameObject) continue;
                 
-                Debug.Log("Hit object: " + hitCollider.gameObject.name + " with tag: " + hitCollider.tag);
+                // Debug.Log("Hit object: " + hitCollider.gameObject.name + " with tag: " + hitCollider.tag);
                 
                 // Check for enemy tag or enemy sword tag
                 if (hitCollider.CompareTag("Enemy") || hitCollider.transform.CompareTag("Enemy"))
@@ -329,7 +328,7 @@ namespace ClearSky
                     // Apply damage if enemy found
                     if (enemy != null)
                     {
-                        Debug.Log("Player hit enemy for " + attackDamage + " damage");
+                        // Debug.Log("Player hit enemy for " + attackDamage + " damage");
                         enemy.TakeDamage(attackDamage);
                         hitAnything = true;
                         
@@ -365,18 +364,18 @@ namespace ClearSky
         // Implement IDamageable interface
         public void TakeDamage(float damage)
         {
-            Debug.Log("Player.TakeDamage called with damage: " + damage);
+            // Debug.Log("Player.TakeDamage called with damage: " + damage);
             
             // If already invincible or dead, ignore damage
             if (isInvincible)
             {
-                Debug.Log("Player is invincible - damage ignored");
+                // Debug.Log("Player is invincible - damage ignored");
                 return;
             }
             
             if (!alive)
             {
-                Debug.Log("Player is not alive - damage ignored");
+                // Debug.Log("Player is not alive - damage ignored");
                 return;
             }
             
@@ -384,17 +383,17 @@ namespace ClearSky
             int damageAmount = Mathf.RoundToInt(damage);
             currentHealth -= damageAmount;
             
-            Debug.Log("Player took " + damageAmount + " damage! Current health: " + currentHealth);
+            // Debug.Log("Player took " + damageAmount + " damage! Current health: " + currentHealth);
             
             // Play hurt animation
             if (anim != null)
             {
                 anim.SetTrigger("hurt");
-                Debug.Log("Player hurt animation triggered");
+                // Debug.Log("Player hurt animation triggered");
             }
             else
             {
-                Debug.LogError("Player has no animator component!");
+                // Debug.LogError("Player has no animator component!");
             }
             
             // Apply knockback force
@@ -402,13 +401,13 @@ namespace ClearSky
             if (rb != null)
             {
                 rb.AddForce(knockbackDirection * knockbackForce, ForceMode2D.Impulse);
-                Debug.Log("Applied knockback force to player");
+                // Debug.Log("Applied knockback force to player");
             }
             
             // Set invincibility
             isInvincible = true;
             invincibilityTimer = invincibilityTime;
-            Debug.Log("Player is now invincible for " + invincibilityTime + " seconds");
+            // Debug.Log("Player is now invincible for " + invincibilityTime + " seconds");
             
             // Apply visual feedback for invincibility
             SpriteRenderer spriteRenderer = GetComponent<SpriteRenderer>();
@@ -420,7 +419,7 @@ namespace ClearSky
             
             if (currentHealth <= 0)
             {
-                Debug.Log("Player health reached zero - calling Die()");
+                // Debug.Log("Player health reached zero - calling Die()");
                 Die();
             }
         }

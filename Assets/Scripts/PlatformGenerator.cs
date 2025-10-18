@@ -14,8 +14,9 @@ public class PlatformGenerator : MonoBehaviour
     [SerializeField] private float maxJumpHeight = 3f;         // Max Y distance player can jump UP
     [SerializeField] private float maxJumpDistance = 5f;       // Max X distance player can jump across gaps
     [SerializeField] private float maxFallDistance = 8f;       // Max Y distance player can safely fall
-    [SerializeField] private float minPlatformSpacing = 2f;
+    [SerializeField] private float minPlatformSpacing = 4f;    // Increased from 2f to 4f for better spacing
     [SerializeField] private Vector2 platformSize = new Vector2(3f, 0.5f); // Wider platforms for walking
+    [SerializeField] private int platformBlocksPerPlatform = 3; // Number of blocks to spawn per platform
     
     [Header("Platform Prefabs")]
     [SerializeField] private List<GameObject> platformPrefabs = new List<GameObject>();
@@ -43,6 +44,7 @@ public class PlatformGenerator : MonoBehaviour
     private List<GameObject> instantiatedEnemies = new List<GameObject>();
     private GameObject spawnedPlayer;
     private Queue<Vector2> platformQueue = new Queue<Vector2>();
+    private List<GameObject> groundSegments = new List<GameObject>(); // Track ground segments
     
     void Start()
     {
@@ -113,11 +115,14 @@ public class PlatformGenerator : MonoBehaviour
             return;
         }
         
+        // Clear previous ground segments
+        groundSegments.Clear();
+        
         // Create ground segments across the world width
         float groundSegmentWidth = 10f; // Adjust based on your ground prefab size
-        int groundSegments = Mathf.CeilToInt(worldWidth / groundSegmentWidth);
+        int numGroundSegments = Mathf.CeilToInt(worldWidth / groundSegmentWidth);
         
-        for (int i = 0; i < groundSegments; i++)
+        for (int i = 0; i < numGroundSegments; i++)
         {
             Vector3 groundPosition = new Vector3(
                 (i * groundSegmentWidth) - (worldWidth * 0.5f),
@@ -128,7 +133,12 @@ public class PlatformGenerator : MonoBehaviour
             GameObject ground = Instantiate(groundPrefab, groundPosition, Quaternion.identity, transform);
             ground.name = $"Ground_Segment_{i}";
             instantiatedPlatforms.Add(ground);
+            
+            // Track ground segments for player spawning
+            groundSegments.Add(ground);
         }
+        
+        Debug.Log($"Generated {numGroundSegments} ground segments");
     }
     
     private void GeneratePlatforms()
@@ -192,7 +202,8 @@ public class PlatformGenerator : MonoBehaviour
         if (movementType < 0.4f) // 40% - Horizontal jump (gap crossing)
         {
             float jumpDirection = Random.value < 0.5f ? -1f : 1f;
-            float jumpDistance = Random.Range(2f, maxJumpDistance);
+            // Better spacing: 3-4.5 units apart for comfortable jumps
+            float jumpDistance = Random.Range(3f, maxJumpDistance * 0.9f);
             newPosition.x += jumpDirection * jumpDistance;
             
             // Small vertical variation for realistic jumps
@@ -200,13 +211,16 @@ public class PlatformGenerator : MonoBehaviour
         }
         else if (movementType < 0.7f) // 30% - Upward jump (climbing)
         {
-            newPosition.y += Random.Range(1f, maxJumpHeight);
-            newPosition.x += Random.Range(-2f, 2f); // Small horizontal drift
+            // Climbing platforms should have comfortable vertical spacing
+            newPosition.y += Random.Range(1.5f, maxJumpHeight * 0.9f);
+            // Ensure horizontal spacing for approach
+            newPosition.x += Random.Range(-3f, 3f);
         }
         else // 30% - Downward placement (falling/dropping)
         {
-            newPosition.y -= Random.Range(1f, maxFallDistance);
-            newPosition.x += Random.Range(-2f, 2f); // Small horizontal drift
+            newPosition.y -= Random.Range(2f, maxFallDistance * 0.8f);
+            // Ensure horizontal spacing when dropping down
+            newPosition.x += Random.Range(-3f, 3f);
         }
         
         // Clamp to world bounds
@@ -240,8 +254,9 @@ public class PlatformGenerator : MonoBehaviour
             if (distance < minPlatformSpacing)
                 return false;
             
-            // Check for overlap (more precise)
-            if (Mathf.Abs(position.x - existingPlatform.x) < platformSize.x &&
+            // Check for overlap considering the 3-block platform width
+            float actualPlatformWidth = platformSize.x * platformBlocksPerPlatform;
+            if (Mathf.Abs(position.x - existingPlatform.x) < actualPlatformWidth &&
                 Mathf.Abs(position.y - existingPlatform.y) < platformSize.y)
                 return false;
         }
@@ -305,12 +320,27 @@ public class PlatformGenerator : MonoBehaviour
         // Choose random platform prefab
         GameObject prefabToUse = platformPrefabs[Random.Range(0, platformPrefabs.Count)];
         
-        // Instantiate platform
-        Vector3 worldPosition = new Vector3(position.x, position.y, 0f);
-        GameObject platformInstance = Instantiate(prefabToUse, worldPosition, Quaternion.identity, transform);
-        platformInstance.name = $"Platform_{placedPlatforms.Count}";
+        // Calculate the actual platform size from the prefab
+        float blockWidth = 1f; // Default, will be updated from prefab
+        SpriteRenderer prefabRenderer = prefabToUse.GetComponent<SpriteRenderer>();
+        if (prefabRenderer != null)
+        {
+            blockWidth = prefabRenderer.bounds.size.x;
+        }
         
-        instantiatedPlatforms.Add(platformInstance);
+        // Calculate starting position for multiple blocks
+        float totalWidth = blockWidth * platformBlocksPerPlatform;
+        float startX = position.x - (totalWidth / 2f) + (blockWidth / 2f);
+        
+        // Instantiate multiple blocks to form one platform
+        for (int i = 0; i < platformBlocksPerPlatform; i++)
+        {
+            Vector3 blockPosition = new Vector3(startX + (i * blockWidth), position.y, 0f);
+            GameObject platformBlock = Instantiate(prefabToUse, blockPosition, Quaternion.identity, transform);
+            platformBlock.name = $"Platform_{placedPlatforms.Count}_Block_{i + 1}";
+            
+            instantiatedPlatforms.Add(platformBlock);
+        }
     }
     
     private void ClearExistingWorld()
@@ -525,7 +555,31 @@ public class PlatformGenerator : MonoBehaviour
     
     private Vector3 GetPlayerSpawnPosition()
     {
-        // Try multiple spawn positions
+        // Use actual ground segment positions if available
+        if (groundSegments.Count > 0)
+        {
+            // Choose a random or specific ground segment
+            GameObject spawnGroundSegment = groundSegments[groundSegments.Count / 2]; // Middle ground segment
+            
+            if (spawnGroundSegment != null)
+            {
+                // Get the top of the ground segment
+                Renderer renderer = spawnGroundSegment.GetComponent<Renderer>();
+                if (renderer != null)
+                {
+                    float groundTop = renderer.bounds.max.y;
+                    Vector3 groundCenter = spawnGroundSegment.transform.position;
+                    return new Vector3(groundCenter.x, groundTop + 1f, 0f); // Spawn 1 unit above ground
+                }
+                else
+                {
+                    // Fallback to ground segment position + offset
+                    return spawnGroundSegment.transform.position + Vector3.up * 2f;
+                }
+            }
+        }
+        
+        // Fallback positions if no ground segments available
         Vector3[] spawnPositions = {
             new Vector3(0f, groundY + 2f, 0f),           // On ground, center
             new Vector3(startingPosition.x, startingPosition.y + 1f, 0f), // Above starting platform
@@ -534,7 +588,7 @@ public class PlatformGenerator : MonoBehaviour
             new Vector3(5f, groundY + 2f, 0f),           // Right side
         };
         
-        // Return the first position (can be enhanced to check for obstacles)
+        Debug.LogWarning("No ground segments found, using fallback spawn position");
         return spawnPositions[0];
     }
     
@@ -658,6 +712,28 @@ public class PlatformGenerator : MonoBehaviour
         // Instantiate enemy
         GameObject enemyInstance = Instantiate(enemyPrefab, enemySpawnPosition, Quaternion.identity, transform);
         enemyInstance.name = $"Enemy_{instantiatedEnemies.Count + 1}";
+        
+        // Ensure enemy has proper physics setup to allow falling
+        Rigidbody2D rb = enemyInstance.GetComponent<Rigidbody2D>();
+        if (rb != null)
+        {
+            // Don't override gravity if already set, just ensure it's enabled
+            if (rb.gravityScale == 0)
+            {
+                rb.gravityScale = 1f;
+            }
+            // Ensure rotation is frozen but allow falling
+            rb.constraints = RigidbodyConstraints2D.FreezeRotation;
+            Debug.Log($"Configured Rigidbody2D for {enemyInstance.name} - Gravity: {rb.gravityScale}, can fall from platforms");
+        }
+        else
+        {
+            // Add Rigidbody2D if missing
+            rb = enemyInstance.AddComponent<Rigidbody2D>();
+            rb.gravityScale = 1f;
+            rb.constraints = RigidbodyConstraints2D.FreezeRotation;
+            Debug.Log($"Added Rigidbody2D to {enemyInstance.name} - Enemy can now fall from platforms");
+        }
         
         instantiatedEnemies.Add(enemyInstance);
     }

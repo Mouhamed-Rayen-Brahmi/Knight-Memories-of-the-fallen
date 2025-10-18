@@ -288,10 +288,12 @@ public class EnemyCode : MonoBehaviour, IDamageable
             transform.rotation = Quaternion.Euler(currentRotation.x, currentRotation.y, 0);
         }
         
-        // Prevent falling through the ground
-        if (transform.position.y < groundY - 1f)
+        // Allow enemies to fall from platforms - only prevent falling through the world floor
+        float worldFloorY = -10f; // Adjust this to your actual world floor level
+        if (transform.position.y < worldFloorY)
         {
-            transform.position = new Vector3(transform.position.x, groundY, transform.position.z);
+            // Only destroy or reset if falling off the world
+            Destroy(gameObject); // Or teleport back if needed
         }
         
         // Prevent teleporting

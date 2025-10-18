@@ -1284,7 +1284,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ClearSky.SimplePlayerController
   movePower: 10
-  jumpPower: 10
+  jumpPower: 15
   attackCooldown: 0.5
   maxHealth: 1000
   invincibilityTime: 1.5
