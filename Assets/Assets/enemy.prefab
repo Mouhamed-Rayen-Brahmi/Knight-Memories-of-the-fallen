@@ -1531,7 +1531,7 @@ BoxCollider2D:
   m_UsedByEffector: 0
   m_CompositeOperation: 0
   m_CompositeOrder: 0
-  m_Offset: {x: -0.115003824, y: 0.02713275}
+  m_Offset: {x: 0.6432631, y: 0.6419424}
   m_SpriteTilingProperty:
     border: {x: 0, y: 0, z: 0, w: 0}
     pivot: {x: 0.5, y: 0.5}
@@ -1541,7 +1541,7 @@ BoxCollider2D:
     drawMode: 0
     adaptiveTiling: 0
   m_AutoTiling: 0
-  m_Size: {x: 4.9699993, y: 5.4257517}
+  m_Size: {x: 6.4865336, y: 6.6553717}
   m_EdgeRadius: 0
 --- !u!114 &777770804266258711
 MonoBehaviour:
@@ -2018,14 +2018,17 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 386ca57fc9dc59e4c9a0a0c209ca0799, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::EnemyCode
-  maxHealth: 100
+  maxHealth: 10
   currentHealth: 0
-  bodyDamage: 10
-  swordDamage: 20
-  invincibilityTime: 0.5
+  bodyDamage: 1
+  swordDamage: 1
+  invincibilityTime: 0
   attackInterval: 2
-  attackRange: 1.5
+  attackRange: 2
   detectionRange: 5
+  attackWindupTime: 0.3
+  attackActiveTime: 0.4
+  attackRecoveryTime: 0.3
   attackPoint: {fileID: 6076639284293404528}
   playerLayer:
     serializedVersion: 2
@@ -2033,7 +2036,10 @@ MonoBehaviour:
   deathDelay: 0.5
   deathEffect: {fileID: 0}
   moveSpeed: 3
+  acceleration: 25
+  friction: 0.85
   canMove: 1
+  stopDistance: 1.2
   bodyCollider: {fileID: 3557683072732268580}
   swordCollider: {fileID: 5773748391229816990}
   isDead: 0

@@ -17,19 +17,59 @@ public class EnemyCode : MonoBehaviour, IDamageable
     public float invincibilityTime = 0.5f;
     
     [Header("Attack Settings")]
-    public float attackInterval = 2f;  // Minimum time between attacks
-    public float attackRange = 1.5f;   // Distance at which enemy will attack
-    public float detectionRange = 10f; // Distance at which enemy will detect player
-    public Transform attackPoint;      // Position of the sword tip for collision detection
-    public LayerMask playerLayer;      // Layer containing the player
+    [Tooltip("Minimum time between attacks")]
+    [Range(1f, 5f)]
+    public float attackInterval = 2f;
+    
+    [Tooltip("Distance at which enemy will attack")]
+    [Range(0.8f, 3f)]
+    public float attackRange = 1.5f;
+    
+    [Tooltip("Distance at which enemy will detect player")]
+    [Range(5f, 20f)]
+    public float detectionRange = 10f;
+    
+    [Tooltip("Attack wind-up time (telegraphing)")]
+    [Range(0.1f, 1f)]
+    public float attackWindupTime = 0.3f;
+    
+    [Tooltip("Attack active duration")]
+    [Range(0.2f, 1f)]
+    public float attackActiveTime = 0.4f;
+    
+    [Tooltip("Attack recovery time")]
+    [Range(0.2f, 1f)]
+    public float attackRecoveryTime = 0.3f;
+    
+    [Tooltip("Position of the sword tip for collision detection")]
+    public Transform attackPoint;
+    
+    [Tooltip("Layer containing the player")]
+    public LayerMask playerLayer;
     
     [Header("Death Settings")]
     public float deathDelay = 3f;
     public AnimationClip deathEffect;
     
     [Header("Movement Settings")]
-    public float moveSpeed = 3f;
+    [Tooltip("Maximum movement speed")]
+    [Range(1f, 8f)]
+    public float moveSpeed = 3.5f;
+    
+    [Tooltip("Acceleration for smoother movement")]
+    [Range(10f, 50f)]
+    public float acceleration = 25f;
+    
+    [Tooltip("Friction when stopping")]
+    [Range(0.1f, 1f)]
+    public float friction = 0.85f;
+    
+    [Tooltip("Can enemy move")]
     public bool canMove = true;
+    
+    [Tooltip("Stop distance from player when attacking")]
+    [Range(0.5f, 2f)]
+    public float stopDistance = 1.2f;
     
     [Header("Colliders")]
     public BoxCollider2D bodyCollider;  // Main body collider
@@ -307,7 +347,17 @@ public class EnemyCode : MonoBehaviour, IDamageable
     {
         if (rb != null)
         {
-            rb.linearVelocity = new Vector2(0, rb.linearVelocity.y);
+            // Apply friction for smooth stopping
+            float currentXVelocity = rb.linearVelocity.x;
+            float newXVelocity = currentXVelocity * friction;
+            
+            // Stop if velocity is very small
+            if (Mathf.Abs(newXVelocity) < 0.1f)
+            {
+                newXVelocity = 0f;
+            }
+            
+            rb.linearVelocity = new Vector2(newXVelocity, rb.linearVelocity.y);
         }
     }
     
@@ -352,31 +402,35 @@ public class EnemyCode : MonoBehaviour, IDamageable
     
     void MoveTowardsPlayer()
     {
-        if (player == null) return;
+        if (player == null || rb == null) return;
         
-        // Store starting position to detect teleporting
-        Vector3 startPosition = transform.position;
+        // Calculate direction to player (only X axis)
+        float directionX = Mathf.Sign(player.position.x - transform.position.x);
+        float distanceToPlayer = Mathf.Abs(player.position.x - transform.position.x);
         
-        // Direction to player (only X axis)
-        Vector2 direction = new Vector2(
-            player.position.x - transform.position.x,
-            0
-        ).normalized;
-        
-        // Move with physics
-        if (rb != null)
+        // Stop if too close (let attack handle it)
+        if (distanceToPlayer < stopDistance)
         {
-            float desiredVelocity = Mathf.Clamp(direction.x * moveSpeed, -moveSpeed, moveSpeed);
-            float currentYVelocity = rb.linearVelocity.y;
-            float smoothedXVelocity = Mathf.Lerp(rb.linearVelocity.x, desiredVelocity, 0.3f);
-            rb.linearVelocity = new Vector2(smoothedXVelocity, currentYVelocity);
+            StopMovement();
+            ChangeAnimationState(STATE_IDLE);
+            return;
         }
-        else
+        
+        // Calculate desired velocity
+        float desiredVelocity = directionX * moveSpeed;
+        float currentVelocity = rb.linearVelocity.x;
+        
+        // Apply acceleration for smoother movement
+        float velocityDifference = desiredVelocity - currentVelocity;
+        float force = velocityDifference * acceleration;
+        
+        // Apply force while preserving Y velocity
+        rb.AddForce(new Vector2(force, 0f));
+        
+        // Clamp to max speed
+        if (Mathf.Abs(rb.linearVelocity.x) > moveSpeed)
         {
-            // Fallback direct transform movement
-            float maxMovePerFrame = moveSpeed * Time.deltaTime;
-            float actualMove = Mathf.Clamp(direction.x * moveSpeed * Time.deltaTime, -maxMovePerFrame, maxMovePerFrame);
-            transform.position += new Vector3(actualMove, 0, 0);
+            rb.linearVelocity = new Vector2(Mathf.Sign(rb.linearVelocity.x) * moveSpeed, rb.linearVelocity.y);
         }
         
         // Play walking animation
@@ -398,8 +452,12 @@ public class EnemyCode : MonoBehaviour, IDamageable
     
     IEnumerator AttackSequence()
     {
-        // Wind-up phase
-        yield return new WaitForSeconds(0.3f);
+        // Stop movement during attack
+        StopMovement();
+        
+        // Wind-up phase (telegraphing)
+        ChangeAnimationState(STATE_ATTACK);
+        yield return new WaitForSeconds(attackWindupTime);
         
         if (isDead || player == null)
         {
@@ -411,61 +469,19 @@ public class EnemyCode : MonoBehaviour, IDamageable
         if (swordCollider != null)
         {
             swordCollider.enabled = true;
-            Debug.Log("Sword collider ENABLED - ready to hit player");
-            
-            // Make sure the sword knows it's active
-            EnemySwordCollider swordScript = null;
-            if (attackPoint != null)
-            {
-                swordScript = attackPoint.GetComponent<EnemySwordCollider>();
-                if (swordScript != null)
-                {
-                    Debug.Log("Found EnemySwordCollider script on attack point");
-                }
-            }
-        }
-        else
-        {
-            Debug.LogError("No sword collider reference found during attack!");
         }
         
         // Active attack duration
-        yield return new WaitForSeconds(0.4f);
-        
-        // Attempt to directly check for player collision at attack point
-        if (attackPoint != null && player != null)
-        {
-            float distToPlayer = Vector2.Distance(attackPoint.position, player.position);
-            Debug.Log("Distance from sword to player: " + distToPlayer);
-            
-            if (distToPlayer < 2.0f)
-            {
-                // Direct hit detection
-                Debug.Log("Player in sword range - attempting direct hit");
-                
-                // Try to find player
-                GameObject playerObj = GameObject.FindGameObjectWithTag("Player");
-                if (playerObj != null)
-                {
-                    IDamageable playerDamageable = playerObj.GetComponent<IDamageable>();
-                    if (playerDamageable != null)
-                    {
-                        Debug.Log("Direct hit detected - applying damage");
-                        playerDamageable.TakeDamage(swordDamage);
-                    }
-                }
-            }
-        }
+        yield return new WaitForSeconds(attackActiveTime);
         
         // Disable sword collider
         if (swordCollider != null)
         {
             swordCollider.enabled = false;
-            Debug.Log("Sword collider DISABLED");
         }
         
         // Recovery phase
-        yield return new WaitForSeconds(0.3f);
+        yield return new WaitForSeconds(attackRecoveryTime);
         
         // Reset attack state
         isAttacking = false;
