@@ -90,18 +90,7 @@ namespace ClearSky
         private void Update()
         {
             Restart();
-
-            if (jumpBufferCounter > 0f) jumpBufferCounter -= Time.deltaTime;
-            if (isGrounded)
-            {
-                coyoteCounter = coyoteTime;
-                jumpsRemaining = maxJumps; // Reset jumps when grounded
-                isMidAirJump = false;
-            }
-            else
-            {
-                coyoteCounter -= Time.deltaTime;
-            }
+            UpdatePlayerState();
 
             if (isInvincible)
             {
@@ -130,13 +119,6 @@ namespace ClearSky
                 Jump();
                 Run();
             }
-
-            // Reset gravity when grounded
-            if (isGrounded && rb.gravityScale != 3f)
-            {
-                rb.gravityScale = 3f;
-                forcedFall = false;
-            }
         }
 
         private void FixedUpdate()
@@ -147,6 +129,37 @@ namespace ClearSky
                 Vector2 velocity = new Vector2(horizontalInput * movePower, rb.linearVelocity.y);
                 rb.linearVelocity = velocity;
             }
+        }
+
+        private void UpdatePlayerState()
+        {
+            bool wasGrounded = isGrounded;
+            isGrounded = CheckGrounded();
+
+            // Only reset animations and jumps when we just landed (transition from air to ground)
+            if (isGrounded && !wasGrounded && Mathf.Abs(rb.linearVelocity.y) < 0.1f)
+            {
+                anim.SetBool("isJump", false);
+                anim.SetBool("isMidAir", false);
+                jumpsRemaining = maxJumps;
+            }
+            // Reset jumps if we're grounded (but don't touch animations)
+            else if (isGrounded && Mathf.Abs(rb.linearVelocity.y) < 0.1f)
+            {
+                jumpsRemaining = maxJumps;
+            }
+        }
+
+        private bool CheckGrounded()
+        {
+            Vector2 origin = transform.position;
+            float radius = 0.2f;
+            Vector2 direction = new Vector2(0, -1);
+            float distance = 0.5f;
+            LayerMask layerMask = LayerMask.GetMask("Ground", "Platform");
+
+            RaycastHit2D hitRec = Physics2D.CircleCast(origin, radius, direction, distance, layerMask);
+            return hitRec.collider != null;
         }
 
         void Run()
@@ -170,21 +183,32 @@ namespace ClearSky
 
         void Jump()
         {
-            if (Input.GetButtonDown("Jump") || Input.GetKeyDown(KeyCode.Z) || Input.GetKeyDown(KeyCode.W))
-                jumpBufferCounter = jumpBufferTime;
+            if (!Input.GetButtonDown("Jump") && !Input.GetKeyDown(KeyCode.Z) && !Input.GetKeyDown(KeyCode.W))
+                return;
 
-            // First jump (from ground or coyote time)
-            if (jumpBufferCounter > 0f && coyoteCounter > 0f && jumpsRemaining == maxJumps)
+            if (jumpsRemaining > 0)
             {
-                PerformJump(false);
-                jumpBufferCounter = 0f;
-                coyoteCounter = 0f;
-            }
-            // Mid-air jump (double jump)
-            else if (jumpBufferCounter > 0f && jumpsRemaining > 0 && !isGrounded)
-            {
-                PerformJump(true);
-                jumpBufferCounter = 0f;
+                Vector2 newVelocity;
+                newVelocity.x = rb.linearVelocity.x;
+                newVelocity.y = jumpPower;
+
+                rb.linearVelocity = newVelocity;
+
+                // First jump (when we have both jumps remaining)
+                if (jumpsRemaining == maxJumps)
+                {
+                    anim.SetBool("isJump", true);
+                    anim.SetBool("isMidAir", false);
+                }
+                // Second jump (double jump / mid-air jump)
+                else
+                {
+                    anim.SetBool("isJump", false);
+                    anim.SetBool("isMidAir", true);
+                    Debug.Log("Mid-air jump executed");
+                }
+
+                jumpsRemaining -= 1;
             }
 
             // Jump cut (shorter jump when releasing button)
@@ -192,27 +216,6 @@ namespace ClearSky
             {
                 rb.linearVelocity = new Vector2(rb.linearVelocity.x, rb.linearVelocity.y * jumpCutMultiplier);
             }
-        }
-
-        void PerformJump(bool isMidAir)
-        {
-            isJumping = true;
-            jumpsRemaining--;
-            
-            if (isMidAir)
-            {
-                // Mid-air jump animation
-                anim.SetBool("isMidAir", true);
-                isMidAirJump = true;
-            }
-            else
-            {
-                // Regular jump animation
-                anim.SetBool("isJump", true);
-            }
-            
-            rb.linearVelocity = new Vector2(rb.linearVelocity.x, jumpPower);
-            isJumping = false;
         }
 
         void Attack()
@@ -257,21 +260,16 @@ namespace ClearSky
 
         private void OnCollisionEnter2D(Collision2D collision)
         {
-            if (collision.gameObject.CompareTag("Ground"))
+            // Check if landing on ground or platform
+            if (collision.gameObject.CompareTag("Ground") || collision.gameObject.layer == LayerMask.NameToLayer("Platform"))
             {
                 isGrounded = true;
-                forcedFall = false;
-                jumpsRemaining = maxJumps; // Reset jumps on landing
+                jumpsRemaining = maxJumps;
                 anim.SetBool("isJump", false);
                 anim.SetBool("isMidAir", false);
                 isMidAirJump = false;
-                rb.gravityScale = 3f;
                 return;
             }
-
-            // Cancel jump on collision with ANYTHING midair
-            if (!isGrounded && (anim.GetBool("isJump") || anim.GetBool("isMidAir")))
-                CancelJumpAndForceFall();
 
             // Enemy collision logic
             if (collision.gameObject.CompareTag("Enemy"))
@@ -285,27 +283,10 @@ namespace ClearSky
             }
         }
 
-        private void OnCollisionStay2D(Collision2D collision)
-        {
-            if (!isGrounded && (anim.GetBool("isJump") || anim.GetBool("isMidAir")) && !collision.gameObject.CompareTag("Ground"))
-                CancelJumpAndForceFall();
-        }
-
         private void OnCollisionExit2D(Collision2D collision)
         {
-            if (collision.gameObject.CompareTag("Ground"))
+            if (collision.gameObject.CompareTag("Ground") || collision.gameObject.layer == LayerMask.NameToLayer("Platform"))
                 isGrounded = false;
-        }
-
-        private void CancelJumpAndForceFall()
-        {
-            if (forcedFall || rb == null) return;
-            forcedFall = true;
-
-            anim.SetBool("isJump", false);
-            anim.SetBool("isMidAir", false);
-            rb.linearVelocity = new Vector2(rb.linearVelocity.x, -8f);
-            rb.gravityScale = fallGravityScale;
         }
 
         void OnDrawGizmosSelected()
